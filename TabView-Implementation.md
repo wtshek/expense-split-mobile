@@ -62,11 +62,12 @@ This React Native application uses Expo Router's built-in tab navigation to crea
 
 ### Key Features
 
-- **Custom Tab Bar**: Styled with iOS-inspired design
-- **Smooth Transitions**: Native performance with react-native-tab-view
+- **Native Tab Navigation**: Uses Expo Router's built-in bottom tabs
+- **Smooth Transitions**: Native performance with React Navigation
 - **Responsive Design**: Adapts to different screen sizes
 - **Modern UI**: Clean, minimal interface with proper spacing and typography
 - **TypeScript Support**: Full type safety throughout the application
+- **Icon Support**: Custom SF Symbols icons for each tab
 
 ### Styling
 
