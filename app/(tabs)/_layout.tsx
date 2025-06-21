@@ -1,9 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
 
 import { HapticTab } from "@/components/HapticTab";
-import { IconSymbol } from "@/components/ui/IconSymbol";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { AppStyles } from "@/constants/AppStyles";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -43,9 +43,9 @@ export default function TabLayout() {
         options={{
           title: "Input",
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol
+            <Ionicons
+              name={focused ? "add-circle" : "add-circle-outline"}
               size={24}
-              name="plus.circle.fill"
               color={
                 focused
                   ? AppStyles.colors.primary
@@ -60,9 +60,9 @@ export default function TabLayout() {
         options={{
           title: "Stats",
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol
+            <Ionicons
+              name={focused ? "bar-chart" : "bar-chart-outline"}
               size={24}
-              name="chart.bar.fill"
               color={
                 focused
                   ? AppStyles.colors.primary
@@ -77,9 +77,9 @@ export default function TabLayout() {
         options={{
           title: "Split",
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol
+            <Ionicons
+              name={focused ? "people" : "people-outline"}
               size={24}
-              name="person.2.fill"
               color={
                 focused
                   ? AppStyles.colors.primary

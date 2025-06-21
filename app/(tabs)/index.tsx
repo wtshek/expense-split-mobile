@@ -1,4 +1,4 @@
-import InputFormScreen from "@/components/InputFormScreen";
+import AddExpenseFormScreen from "@/components/AddExpenseFormScreen";
 import { AppStyles } from "@/constants/AppStyles";
 import React from "react";
 import { StyleSheet, View } from "react-native";
@@ -6,7 +6,7 @@ import { StyleSheet, View } from "react-native";
 export default function InputScreen() {
   return (
     <View style={styles.container}>
-      <InputFormScreen />
+      <AddExpenseFormScreen />
     </View>
   );
 }
