@@ -1,14 +1,8 @@
-import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { Redirect } from "expo-router";
 
 export default function Index() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // TODO: Check if user is already authenticated
-    // For now, always redirect to login
-    router.replace("/login");
-  }, []);
-
-  return null;
+  // AuthWrapper will handle authentication state
+  // If user is not authenticated, AuthWrapper will show auth forms
+  // If user is authenticated, this will redirect to the main app
+  return <Redirect href="/(tabs)" />;
 }

@@ -1,11 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase configuration constants
-// Replace these with your actual Supabase project values
-// TODO: Move to .env
-const SUPABASE_URL = "https://aydqdyxvntqpsyrpfhyp.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5ZHFkeXh2bnRxcHN5cnBmaHlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1NDg3NTcsImV4cCI6MjA2NjEyNDc1N30.GjRQFLfQulqrojTTe-NDFhk2k90Cfu1kylP5q13CXpc";
+// Supabase configuration from environment variables
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "Missing Supabase environment variables. Please check your .env file and ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set."
+  );
+}
 
 // Create Supabase client with authentication enabled
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

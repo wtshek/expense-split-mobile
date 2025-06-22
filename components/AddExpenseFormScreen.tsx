@@ -1,7 +1,16 @@
 import { AppStyles } from "@/constants/AppStyles";
-import { Picker } from "@react-native-picker/picker";
-import React, { useState } from "react";
+import { Category, Profile } from "@/types/database";
 import {
+  addExpenseWithSplit,
+  fetchCategories,
+  fetchProfiles,
+  getCurrentUserProfile,
+  initializeDatabase,
+} from "@/utils/database";
+import { Picker } from "@react-native-picker/picker";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -31,23 +40,105 @@ const AddExpenseFormScreen = () => {
   const [formData, setFormData] = useState<ExpenseFormData>({
     description: "",
     amount: "",
-    category: "Food",
+    category: "",
     date: new Date().toLocaleDateString(),
     isGroupExpense: false,
-    paidBy: "Me",
+    paidBy: "",
     splitType: "equal",
     myPercentage: "50",
     myCustomAmount: "",
     notes: "",
   });
 
-  const categories = ["Food", "Transport", "Home", "Entertainment", "Other"];
-  const participants = ["Me", "My Girlfriend"];
+  // API state
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
   const splitOptions = [
     { label: "Equal Split (50/50)", value: "equal" },
     { label: "Percentage Split", value: "percentage" },
     { label: "Custom Amount", value: "custom" },
   ];
+
+  // Initialize data on component mount
+  useEffect(() => {
+    initializeData();
+  }, []);
+
+  const initializeData = async () => {
+    try {
+      setLoading(true);
+
+      // Initialize database if needed
+      const initResult = await initializeDatabase();
+      if (!initResult.success) {
+        Alert.alert(
+          "Error",
+          "Failed to initialize database: " + initResult.error?.message
+        );
+        return;
+      }
+
+      // Fetch all required data
+      const [categoriesResult, profilesResult, currentProfileResult] =
+        await Promise.all([
+          fetchCategories(),
+          fetchProfiles(),
+          getCurrentUserProfile(),
+        ]);
+
+      if (categoriesResult.error) {
+        Alert.alert(
+          "Error",
+          "Failed to load categories: " + categoriesResult.error.message
+        );
+        return;
+      }
+
+      if (profilesResult.error) {
+        Alert.alert(
+          "Error",
+          "Failed to load profiles: " + profilesResult.error.message
+        );
+        return;
+      }
+
+      if (currentProfileResult.error) {
+        Alert.alert(
+          "Error",
+          "Failed to load your profile: " + currentProfileResult.error.message
+        );
+        return;
+      }
+
+      setCategories(categoriesResult.data || []);
+      setProfiles(profilesResult.data || []);
+      setCurrentProfile(currentProfileResult.data);
+
+      // Set default values
+      if (categoriesResult.data && categoriesResult.data.length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          category: categoriesResult.data![0].id,
+        }));
+      }
+
+      if (currentProfileResult.data) {
+        setFormData((prev) => ({
+          ...prev,
+          paidBy: currentProfileResult.data!.id,
+        }));
+      }
+    } catch (error) {
+      console.error("Error initializing data:", error);
+      Alert.alert("Error", "Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (
     field: keyof ExpenseFormData,
@@ -86,7 +177,9 @@ const AddExpenseFormScreen = () => {
     }
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
+    if (submitting) return;
+
     // Basic validation
     if (!formData.description.trim()) {
       Alert.alert("Error", "Please enter a description");
@@ -96,12 +189,15 @@ const AddExpenseFormScreen = () => {
       Alert.alert("Error", "Please enter a valid amount");
       return;
     }
+    if (!currentProfile) {
+      Alert.alert("Error", "User profile not loaded");
+      return;
+    }
+
+    const totalAmount = parseFloat(formData.amount);
 
     // Additional validation for group expenses
     if (formData.isGroupExpense) {
-      const totalAmount = parseFloat(formData.amount);
-      const split = calculateSplit();
-
       if (formData.splitType === "percentage") {
         const myPerc = parseFloat(formData.myPercentage);
         if (isNaN(myPerc) || myPerc < 0 || myPerc > 100) {
@@ -119,38 +215,109 @@ const AddExpenseFormScreen = () => {
       }
     }
 
-    // Log the form state to console
-    const expenseData = {
-      ...formData,
-      split: formData.isGroupExpense ? calculateSplit() : null,
-    };
-    console.log("Expense Form Data:", expenseData);
+    try {
+      setSubmitting(true);
 
-    // Show success message
-    Alert.alert(
-      "Expense Added",
-      `${formData.description} - €${formData.amount}`,
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            // Reset form
-            setFormData({
-              description: "",
-              amount: "",
-              category: "Food",
-              date: new Date().toLocaleDateString(),
-              isGroupExpense: false,
-              paidBy: "Me",
-              splitType: "equal",
-              myPercentage: "50",
-              myCustomAmount: "",
-              notes: "",
-            });
+      // Find the partner profile (assuming it's the other profile that's not current user)
+      const partnerProfile = profiles.find((p) => p.id !== currentProfile.id);
+      if (formData.isGroupExpense && !partnerProfile) {
+        Alert.alert("Error", "Partner profile not found");
+        return;
+      }
+
+      // Prepare expense data
+      const involvedProfiles = formData.isGroupExpense
+        ? [currentProfile.id, partnerProfile!.id]
+        : [currentProfile.id];
+
+      const expenseData = {
+        description: formData.description.trim(),
+        amount: totalAmount,
+        category_id: formData.category,
+        expense_date: new Date().toISOString(),
+        is_group_expense: formData.isGroupExpense,
+        group_id: null, // For now, not using groups
+        paid_by_profile_id: formData.paidBy,
+        involved_profile_ids: involvedProfiles,
+        notes: formData.notes.trim() || undefined,
+      };
+
+      let result;
+
+      if (formData.isGroupExpense) {
+        // Create expense with split
+        let splitConfig;
+
+        if (formData.splitType === "percentage") {
+          const myPercentage = parseFloat(formData.myPercentage);
+          splitConfig = {
+            percentages: [
+              { profile_id: currentProfile.id, percentage: myPercentage },
+              {
+                profile_id: partnerProfile!.id,
+                percentage: 100 - myPercentage,
+              },
+            ],
+          };
+        } else if (formData.splitType === "custom") {
+          const myAmount = parseFloat(formData.myCustomAmount);
+          splitConfig = {
+            customAmounts: [
+              { profile_id: currentProfile.id, amount: myAmount },
+              {
+                profile_id: partnerProfile!.id,
+                amount: totalAmount - myAmount,
+              },
+            ],
+          };
+        }
+
+        result = await addExpenseWithSplit(
+          expenseData,
+          formData.splitType,
+          splitConfig
+        );
+      } else {
+        // Personal expense (equal split with just one person)
+        result = await addExpenseWithSplit(expenseData, "equal");
+      }
+
+      if (result.error) {
+        Alert.alert("Error", "Failed to add expense: " + result.error.message);
+        return;
+      }
+
+      // Success!
+      Alert.alert(
+        "Success",
+        `Expense "${formData.description}" has been added successfully!`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Reset form
+              setFormData({
+                description: "",
+                amount: "",
+                category: categories.length > 0 ? categories[0].id : "",
+                date: new Date().toLocaleDateString(),
+                isGroupExpense: false,
+                paidBy: currentProfile.id,
+                splitType: "equal",
+                myPercentage: "50",
+                myCustomAmount: "",
+                notes: "",
+              });
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      console.error("Error adding expense:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDatePress = () => {
@@ -161,6 +328,16 @@ const AddExpenseFormScreen = () => {
   };
 
   const split = formData.isGroupExpense ? calculateSplit() : null;
+
+  // Show loading screen while initializing
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={AppStyles.colors.accent} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -189,7 +366,7 @@ const AddExpenseFormScreen = () => {
 
         {/* Amount */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount (€) *</Text>
+          <Text style={styles.label}>Amount *</Text>
           <TextInput
             style={styles.textInput}
             placeholder="0.00"
@@ -210,7 +387,11 @@ const AddExpenseFormScreen = () => {
               style={styles.picker}
             >
               {categories.map((category) => (
-                <Picker.Item key={category} label={category} value={category} />
+                <Picker.Item
+                  key={category.id}
+                  label={`${category.icon || ""} ${category.name}`}
+                  value={category.id}
+                />
               ))}
             </Picker>
           </View>
@@ -231,7 +412,7 @@ const AddExpenseFormScreen = () => {
               <Text style={styles.label}>Group Expense</Text>
               <Text style={styles.switchSubtext}>
                 {formData.isGroupExpense
-                  ? "Split with My Girlfriend"
+                  ? "Split with others"
                   : "Personal expense"}
               </Text>
             </View>
@@ -263,11 +444,11 @@ const AddExpenseFormScreen = () => {
                 onValueChange={(value) => handleInputChange("paidBy", value)}
                 style={styles.picker}
               >
-                {participants.map((participant) => (
+                {profiles.map((profile) => (
                   <Picker.Item
-                    key={participant}
-                    label={participant}
-                    value={participant}
+                    key={profile.id}
+                    label={profile.name}
+                    value={profile.id}
                   />
                 ))}
               </Picker>
@@ -341,15 +522,21 @@ const AddExpenseFormScreen = () => {
               <View style={styles.splitPreview}>
                 <Text style={styles.splitPreviewTitle}>Split Preview:</Text>
                 <View style={styles.splitPreviewRow}>
-                  <Text style={styles.splitPreviewLabel}>Me:</Text>
+                  <Text style={styles.splitPreviewLabel}>
+                    {currentProfile?.name || "Me"}:
+                  </Text>
                   <Text style={styles.splitPreviewAmount}>
-                    €{split.myAmount.toFixed(2)}
+                    {split.myAmount.toFixed(2)}
                   </Text>
                 </View>
                 <View style={styles.splitPreviewRow}>
-                  <Text style={styles.splitPreviewLabel}>My Girlfriend:</Text>
+                  <Text style={styles.splitPreviewLabel}>
+                    {profiles.find((p) => p.id !== currentProfile?.id)?.name ||
+                      "Partner"}
+                    :
+                  </Text>
                   <Text style={styles.splitPreviewAmount}>
-                    €{split.partnerAmount.toFixed(2)}
+                    {split.partnerAmount.toFixed(2)}
                   </Text>
                 </View>
               </View>
@@ -373,10 +560,18 @@ const AddExpenseFormScreen = () => {
 
         {/* Add Expense Button */}
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[
+            styles.submitButton,
+            submitting && styles.submitButtonDisabled,
+          ]}
           onPress={handleAddExpense}
+          disabled={submitting}
         >
-          <Text style={styles.submitButtonText}>Add Expense</Text>
+          {submitting ? (
+            <ActivityIndicator color={AppStyles.colors.text.inverse} />
+          ) : (
+            <Text style={styles.submitButtonText}>Add Expense</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -391,6 +586,15 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: AppStyles.spacing.md,
     paddingBottom: AppStyles.spacing.xxl,
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    ...AppStyles.typography.body,
+    color: AppStyles.colors.text.secondary,
+    marginTop: AppStyles.spacing.md,
   },
   header: {
     marginBottom: AppStyles.spacing.lg,
@@ -447,42 +651,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: AppStyles.spacing.sm,
   },
   switchLabels: {
     flex: 1,
   },
   switchSubtext: {
     ...AppStyles.typography.small,
-    color: AppStyles.colors.text.secondary,
+    color: AppStyles.colors.text.tertiary,
     marginTop: 2,
   },
   splitInputContainer: {
     marginTop: AppStyles.spacing.sm,
-    gap: AppStyles.spacing.xs,
   },
   splitLabel: {
     ...AppStyles.typography.caption,
     color: AppStyles.colors.text.secondary,
+    marginBottom: AppStyles.spacing.xs,
   },
   percentageRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: AppStyles.spacing.sm,
   },
   percentageInput: {
     flex: 1,
-    maxWidth: 80,
+    marginRight: AppStyles.spacing.sm,
   },
   percentSymbol: {
-    ...AppStyles.typography.bodyMedium,
+    ...AppStyles.typography.body,
     color: AppStyles.colors.text.secondary,
+    fontWeight: "500",
   },
   splitPreview: {
-    ...AppStyles.card,
-    backgroundColor: AppStyles.colors.surface,
-    marginTop: AppStyles.spacing.sm,
+    backgroundColor: AppStyles.colors.background,
     padding: AppStyles.spacing.md,
+    borderRadius: AppStyles.borderRadius.sm,
+    marginTop: AppStyles.spacing.sm,
+    borderWidth: 1,
+    borderColor: AppStyles.colors.border,
   },
   splitPreviewTitle: {
     ...AppStyles.typography.captionMedium,
@@ -493,7 +698,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: AppStyles.spacing.xs,
+    marginBottom: AppStyles.spacing.xs,
   },
   splitPreviewLabel: {
     ...AppStyles.typography.caption,
@@ -504,9 +709,17 @@ const styles = StyleSheet.create({
     color: AppStyles.colors.text.primary,
   },
   submitButton: {
-    ...AppStyles.button.primary,
+    backgroundColor: AppStyles.colors.text.primary,
+    borderRadius: AppStyles.borderRadius.sm,
+    paddingVertical: AppStyles.spacing.md,
+    paddingHorizontal: AppStyles.spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: AppStyles.spacing.md,
-    minHeight: 56,
+    minHeight: 48,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
   submitButtonText: {
     ...AppStyles.typography.bodyMedium,

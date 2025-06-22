@@ -1,6 +1,14 @@
 import { AppStyles } from "@/constants/AppStyles";
-import React from "react";
+import { ExpenseWithDetails, Profile } from "@/types/database";
 import {
+  fetchExpenses,
+  fetchProfiles,
+  getCurrentUserProfile,
+} from "@/utils/database";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,73 +16,276 @@ import {
   View,
 } from "react-native";
 
-const SplitScreen = () => (
-  <ScrollView
-    style={styles.container}
-    contentContainerStyle={styles.contentContainer}
-  >
-    {/* Active Splits Summary */}
-    <View style={styles.summaryCard}>
-      <Text style={styles.summaryTitle}>Active Splits</Text>
-      <Text style={styles.summaryAmount}>€ 0.00</Text>
-      <Text style={styles.summarySubtext}>Total pending settlements</Text>
-    </View>
+const SplitScreen = () => {
+  const [loading, setLoading] = useState(true);
+  const [groupExpenses, setGroupExpenses] = useState<ExpenseWithDetails[]>([]);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [balances, setBalances] = useState<{ [key: string]: number }>({});
+  const [refreshing, setRefreshing] = useState(false);
 
-    {/* Quick Actions */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionButtonText}>New Split</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]}>
-          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
-            Settle Up
-          </Text>
-        </TouchableOpacity>
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      // Get current user profile first
+      const profileResult = await getCurrentUserProfile();
+      if (profileResult.error || !profileResult.data) {
+        Alert.alert("Error", "Failed to get user profile");
+        return;
+      }
+
+      const userId = profileResult.data.id;
+      setCurrentProfile(profileResult.data);
+
+      // Fetch all profiles and group expenses
+      const [profilesResult, expensesResult] = await Promise.all([
+        fetchProfiles(),
+        fetchExpenses(userId, null, { is_group_expense: true }),
+      ]);
+
+      if (profilesResult.error) {
+        Alert.alert(
+          "Error",
+          "Failed to load profiles: " + profilesResult.error.message
+        );
+        return;
+      }
+
+      if (expensesResult.error) {
+        Alert.alert(
+          "Error",
+          "Failed to load expenses: " + expensesResult.error.message
+        );
+        return;
+      }
+
+      setProfiles(profilesResult.data || []);
+      setGroupExpenses(expensesResult.data || []);
+
+      // Calculate balances
+      calculateBalances(expensesResult.data || [], userId);
+    } catch (error) {
+      console.error("Error loading split data:", error);
+      Alert.alert("Error", "Failed to load split data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateBalances = (
+    expenses: ExpenseWithDetails[],
+    currentUserId: string
+  ) => {
+    const balanceMap: { [key: string]: number } = {};
+
+    expenses.forEach((expense) => {
+      if (!expense.split_details || !expense.involved_profile_ids) return;
+
+      const splitDetails = expense.split_details;
+      const totalAmount = expense.amount;
+      const paidBy = expense.paid_by_profile_id;
+
+      // Calculate how much each person owes
+      splitDetails.participants.forEach((participant) => {
+        const profileId = participant.profile_id;
+        const owedAmount = participant.amount;
+
+        if (profileId === currentUserId) {
+          // Current user's perspective
+          if (paidBy === currentUserId) {
+            // Current user paid, others owe them
+            splitDetails.participants.forEach((p) => {
+              if (p.profile_id !== currentUserId) {
+                balanceMap[p.profile_id] =
+                  (balanceMap[p.profile_id] || 0) + p.amount;
+              }
+            });
+          } else {
+            // Someone else paid, current user owes them
+            balanceMap[paidBy] = (balanceMap[paidBy] || 0) - owedAmount;
+          }
+        }
+      });
+    });
+
+    setBalances(balanceMap);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `${Math.abs(amount).toFixed(2)}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const getBalanceText = (profileId: string, amount: number) => {
+    const profile = profiles.find((p) => p.id === profileId);
+    const name = profile?.name || "Unknown";
+
+    if (amount > 0) {
+      return `${name} owes you ${formatCurrency(amount)}`;
+    } else if (amount < 0) {
+      return `You owe ${name} ${formatCurrency(amount)}`;
+    } else {
+      return `You and ${name} are settled up`;
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={AppStyles.colors.accent} />
+        <Text style={styles.loadingText}>Loading split data...</Text>
       </View>
-    </View>
+    );
+  }
 
-    {/* Recent Contacts */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Recent Contacts</Text>
-      <View style={styles.contactsCard}>
-        <View style={styles.emptyContactsState}>
-          <Text style={styles.emptyStateTitle}>No contacts yet</Text>
-          <Text style={styles.emptyStateText}>
-            Add friends to start splitting expenses
-          </Text>
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Split Expenses</Text>
+        <Text style={styles.subtitle}>Your shared expenses and balances</Text>
+      </View>
+
+      {/* Balances Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Balances</Text>
+        {Object.keys(balances).length > 0 ? (
+          <View style={styles.balancesContainer}>
+            {Object.entries(balances).map(([profileId, amount]) => {
+              if (Math.abs(amount) < 0.01) return null; // Skip near-zero balances
+
+              return (
+                <View key={profileId} style={styles.balanceCard}>
+                  <View style={styles.balanceInfo}>
+                    <Text style={styles.balanceText}>
+                      {getBalanceText(profileId, amount)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.balanceIndicator,
+                      {
+                        backgroundColor:
+                          amount > 0
+                            ? AppStyles.colors.success
+                            : AppStyles.colors.warning,
+                      },
+                    ]}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>All Settled Up!</Text>
+            <Text style={styles.emptyStateText}>
+              You have no outstanding balances with anyone.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Recent Group Expenses */}
+      {groupExpenses.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Group Expenses</Text>
+          <View style={styles.expensesContainer}>
+            {groupExpenses.slice(0, 10).map((expense) => {
+              const paidByProfile = profiles.find(
+                (p) => p.id === expense.paid_by_profile_id
+              );
+              const isPaidByCurrentUser =
+                expense.paid_by_profile_id === currentProfile?.id;
+
+              return (
+                <View key={expense.id} style={styles.expenseCard}>
+                  <View style={styles.expenseHeader}>
+                    <Text style={styles.expenseIcon}>
+                      {expense.category?.icon || "💰"}
+                    </Text>
+                    <View style={styles.expenseInfo}>
+                      <Text style={styles.expenseDescription}>
+                        {expense.description}
+                      </Text>
+                      <Text style={styles.expenseDetails}>
+                        {formatDate(expense.expense_date)} • Paid by{" "}
+                        {isPaidByCurrentUser ? "You" : paidByProfile?.name}
+                      </Text>
+                      <Text style={styles.expenseCategory}>
+                        {expense.category?.name || "Other"}
+                      </Text>
+                    </View>
+                    <View style={styles.expenseAmountContainer}>
+                      <Text style={styles.expenseAmount}>
+                        {formatCurrency(expense.amount)}
+                      </Text>
+                      {expense.split_details && (
+                        <Text style={styles.expenseSplit}>
+                          Split {expense.split_details.participants.length} ways
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         </View>
-      </View>
-    </View>
+      )}
 
-    {/* Settlement Suggestions */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Settlement Suggestions</Text>
-      <View style={styles.settlementCard}>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateTitle}>All settled up!</Text>
-          <Text style={styles.emptyStateText}>
-            No pending settlements at the moment
-          </Text>
+      {/* Empty State for Expenses */}
+      {groupExpenses.length === 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Group Expenses</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No Group Expenses Yet</Text>
+            <Text style={styles.emptyStateText}>
+              Start adding group expenses to split costs with others.
+            </Text>
+          </View>
         </View>
-      </View>
-    </View>
+      )}
 
-    {/* Recent Activity */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Recent Activity</Text>
-      <View style={styles.activityCard}>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateTitle}>No recent activity</Text>
-          <Text style={styles.emptyStateText}>
-            Split history will appear here
-          </Text>
-        </View>
-      </View>
-    </View>
-  </ScrollView>
-);
+      {/* Refresh Button */}
+      <TouchableOpacity
+        style={[
+          styles.refreshButton,
+          refreshing && styles.refreshButtonDisabled,
+        ]}
+        onPress={handleRefresh}
+        disabled={refreshing}
+      >
+        {refreshing ? (
+          <ActivityIndicator color={AppStyles.colors.text.inverse} />
+        ) : (
+          <Text style={styles.refreshButtonText}>Refresh Data</Text>
+        )}
+      </TouchableOpacity>
+    </ScrollView>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -85,26 +296,26 @@ const styles = StyleSheet.create({
     padding: AppStyles.spacing.md,
     paddingBottom: AppStyles.spacing.xxl,
   },
-  summaryCard: {
-    ...AppStyles.darkCard,
+  loadingContainer: {
+    justifyContent: "center",
     alignItems: "center",
+  },
+  loadingText: {
+    ...AppStyles.typography.body,
+    color: AppStyles.colors.text.secondary,
+    marginTop: AppStyles.spacing.md,
+  },
+  header: {
     marginBottom: AppStyles.spacing.lg,
   },
-  summaryTitle: {
+  title: {
+    ...AppStyles.typography.h2,
+    color: AppStyles.colors.text.primary,
+    marginBottom: AppStyles.spacing.xs,
+  },
+  subtitle: {
     ...AppStyles.typography.caption,
-    color: AppStyles.colors.text.inverse,
-    opacity: 0.8,
-    marginBottom: AppStyles.spacing.xs,
-  },
-  summaryAmount: {
-    ...AppStyles.typography.h1,
-    color: AppStyles.colors.text.inverse,
-    marginBottom: AppStyles.spacing.xs,
-  },
-  summarySubtext: {
-    ...AppStyles.typography.small,
-    color: AppStyles.colors.text.inverse,
-    opacity: 0.6,
+    color: AppStyles.colors.text.secondary,
   },
   section: {
     marginBottom: AppStyles.spacing.lg,
@@ -114,59 +325,108 @@ const styles = StyleSheet.create({
     color: AppStyles.colors.text.primary,
     marginBottom: AppStyles.spacing.md,
   },
-  actionRow: {
+  balancesContainer: {
+    gap: AppStyles.spacing.sm,
+  },
+  balanceCard: {
+    backgroundColor: AppStyles.colors.background,
+    borderRadius: AppStyles.borderRadius.sm,
+    padding: AppStyles.spacing.md,
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    ...AppStyles.shadows.sm,
   },
-  actionButton: {
-    ...AppStyles.button.primary,
+  balanceInfo: {
     flex: 1,
-    marginRight: AppStyles.spacing.sm,
   },
-  secondaryButton: {
-    ...AppStyles.button.secondary,
-    marginRight: 0,
-    marginLeft: AppStyles.spacing.sm,
-  },
-  actionButtonText: {
+  balanceText: {
     ...AppStyles.typography.bodyMedium,
-    color: AppStyles.colors.text.inverse,
-  },
-  secondaryButtonText: {
     color: AppStyles.colors.text.primary,
   },
-  contactsCard: {
-    ...AppStyles.card,
-    minHeight: 120,
-    justifyContent: "center",
+  balanceIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: AppStyles.spacing.sm,
   },
-  emptyContactsState: {
-    alignItems: "center",
-    paddingVertical: AppStyles.spacing.lg,
+  expensesContainer: {
+    gap: AppStyles.spacing.sm,
   },
-  settlementCard: {
-    ...AppStyles.card,
-    minHeight: 100,
-    justifyContent: "center",
+  expenseCard: {
+    backgroundColor: AppStyles.colors.background,
+    borderRadius: AppStyles.borderRadius.sm,
+    padding: AppStyles.spacing.md,
+    ...AppStyles.shadows.sm,
   },
-  activityCard: {
-    ...AppStyles.card,
-    minHeight: 120,
-    justifyContent: "center",
+  expenseHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  expenseIcon: {
+    fontSize: 20,
+    marginRight: AppStyles.spacing.sm,
+    marginTop: 2,
+  },
+  expenseInfo: {
+    flex: 1,
+  },
+  expenseDescription: {
+    ...AppStyles.typography.bodyMedium,
+    color: AppStyles.colors.text.primary,
+    marginBottom: 2,
+  },
+  expenseDetails: {
+    ...AppStyles.typography.small,
+    color: AppStyles.colors.text.secondary,
+    marginBottom: 2,
+  },
+  expenseCategory: {
+    ...AppStyles.typography.small,
+    color: AppStyles.colors.text.tertiary,
+  },
+  expenseAmountContainer: {
+    alignItems: "flex-end",
+    marginLeft: AppStyles.spacing.sm,
+  },
+  expenseAmount: {
+    ...AppStyles.typography.bodyMedium,
+    color: AppStyles.colors.text.primary,
+  },
+  expenseSplit: {
+    ...AppStyles.typography.small,
+    color: AppStyles.colors.accent,
+    marginTop: 2,
   },
   emptyState: {
     alignItems: "center",
-    paddingVertical: AppStyles.spacing.lg,
+    paddingVertical: AppStyles.spacing.xl,
   },
   emptyStateTitle: {
-    ...AppStyles.typography.bodyMedium,
-    color: AppStyles.colors.text.secondary,
-    marginBottom: AppStyles.spacing.xs,
+    ...AppStyles.typography.h3,
+    color: AppStyles.colors.text.primary,
+    marginBottom: AppStyles.spacing.sm,
   },
   emptyStateText: {
-    ...AppStyles.typography.caption,
-    color: AppStyles.colors.text.tertiary,
+    ...AppStyles.typography.body,
+    color: AppStyles.colors.text.secondary,
     textAlign: "center",
+    maxWidth: 250,
+  },
+  refreshButton: {
+    backgroundColor: AppStyles.colors.text.primary,
+    borderRadius: AppStyles.borderRadius.sm,
+    paddingVertical: AppStyles.spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: AppStyles.spacing.lg,
+    minHeight: 48,
+  },
+  refreshButtonDisabled: {
+    opacity: 0.6,
+  },
+  refreshButtonText: {
+    ...AppStyles.typography.bodyMedium,
+    color: AppStyles.colors.text.inverse,
   },
 });
 

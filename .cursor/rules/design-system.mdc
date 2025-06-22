@@ -56,7 +56,7 @@ smallMedium: { fontSize: 12, fontWeight: '500', lineHeight: 16 } // Tags, badges
 
 ### Usage Examples
 
-- **Balance displays**: Use `h1` for large amounts (€ 6,815.53)
+- **Balance displays**: Use `h1` for large amounts (6,815.53)
 - **Section titles**: Use `h3` for "Quick Actions", "Recent Activity"
 - **Card content**: Use `body` for descriptions, `caption` for labels
 - **Tab labels**: Use `captionMedium` with proper spacing
@@ -195,7 +195,7 @@ inputField: {
   <Text
     style={[AppStyles.typography.h1, { color: AppStyles.colors.text.inverse }]}
   >
-    € 6,815.53
+    6,815.53
   </Text>
 </View>
 ```

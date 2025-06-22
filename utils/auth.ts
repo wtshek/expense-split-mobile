@@ -11,12 +11,16 @@ import {
 // Sign up a new user with email and password
 export const signUp = async (
   email: string,
-  password: string
+  password: string,
+  metadata?: { name?: string }
 ): Promise<AuthResponse> => {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: metadata || {},
+      },
     });
 
     if (error) {

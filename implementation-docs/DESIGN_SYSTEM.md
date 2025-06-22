@@ -190,7 +190,7 @@ inputField: {
   <Text
     style={[AppStyles.typography.h1, { color: AppStyles.colors.text.inverse }]}
   >
-    € 6,815.53
+    6,815.53
   </Text>
 </View>
 ```
