@@ -3,14 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-// Debug logging for build environment
-console.log("Supabase Environment Check:");
-console.log("EXPO_PUBLIC_SUPABASE_URL:", SUPABASE_URL ? "SET" : "NOT SET");
-console.log(
-  "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
-  SUPABASE_ANON_KEY ? "SET" : "NOT SET"
-);
-
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   const missingVars = [];
   if (!SUPABASE_URL) missingVars.push("EXPO_PUBLIC_SUPABASE_URL");
