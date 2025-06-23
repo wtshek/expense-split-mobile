@@ -7,8 +7,6 @@ import {
   fetchGroups,
   getCurrentUserProfile,
 } from "@/utils/database";
-// DateTimePicker removed to fix NativeEventEmitter issue
-// Using simple text input for date instead
 import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useState } from "react";
 import {
@@ -24,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import CustomDatePicker from "./CustomDatePicker";
 
 type SplitType = "equal" | "percentage" | "custom";
 
@@ -31,7 +30,7 @@ interface ExpenseFormData {
   description: string;
   amount: string;
   category: string;
-  date: string;
+  date: Date;
   isGroupExpense: boolean;
   selectedGroup: string;
   paidBy: string;
@@ -62,7 +61,7 @@ const AddExpenseFormScreen = () => {
     description: "",
     amount: "",
     category: "",
-    date: new Date().toLocaleDateString(),
+    date: new Date(),
     isGroupExpense: false,
     selectedGroup: "",
     paidBy: "",
@@ -98,6 +97,7 @@ const AddExpenseFormScreen = () => {
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
   const [showSplitTypePicker, setShowSplitTypePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const splitOptions = [
     { label: "Equal Split (50/50)", value: "equal" },
@@ -179,14 +179,7 @@ const AddExpenseFormScreen = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Initialize date on component mount
-  useEffect(() => {
-    const currentDate = new Date();
-    setFormData((prev) => ({
-      ...prev,
-      date: currentDate.toLocaleDateString(),
-    }));
-  }, []);
+  // Initialize date on component mount - already set as Date in initial state
 
   // Handle notification animation
   useEffect(() => {
@@ -339,7 +332,7 @@ const AddExpenseFormScreen = () => {
 
   const handleInputChange = (
     field: keyof ExpenseFormData,
-    value: string | boolean
+    value: string | boolean | Date
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -477,7 +470,7 @@ const AddExpenseFormScreen = () => {
         description: formData.description.trim(),
         amount: totalAmount,
         category_id: formData.category,
-        expense_date: new Date().toISOString(),
+        expense_date: formData.date.toISOString(),
         is_group_expense: formData.isGroupExpense,
         group_id: formData.isGroupExpense ? formData.selectedGroup : null,
         paid_by_profile_id: formData.paidBy,
@@ -549,7 +542,7 @@ const AddExpenseFormScreen = () => {
         description: "",
         amount: "",
         category: categories.length > 0 ? categories[0].id : "",
-        date: new Date().toLocaleDateString(),
+        date: new Date(),
         isGroupExpense: false,
         selectedGroup: defaultGroup,
         paidBy: currentProfile!.id,
@@ -693,13 +686,19 @@ const AddExpenseFormScreen = () => {
           {/* Date */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="MM/DD/YYYY"
-              value={formData.date}
-              onChangeText={(value) => handleInputChange("date", value)}
-              maxLength={10}
-            />
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.pickerButtonText}>
+                {formData.date.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Group Expense Toggle */}
@@ -978,6 +977,15 @@ const AddExpenseFormScreen = () => {
         splitOptions,
         "Select Split Type"
       )}
+
+      {/* Custom Date Picker */}
+      <CustomDatePicker
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        selectedDate={formData.date}
+        onDateChange={(date) => handleInputChange("date", date)}
+        title="Select Date"
+      />
     </View>
   );
 };
