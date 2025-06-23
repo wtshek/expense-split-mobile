@@ -1,0 +1,116 @@
+name: Deploy PWA to AWS S3
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  NODE_VERSION: "18"
+  AWS_REGION: "us-east-1" # Change to your preferred region
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create environment file
+        run: |
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" >> .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Build PWA
+        run: npm run pwa:build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }} \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "*.html" \
+            --exclude "sw.js" \
+            --exclude "manifest.json"
+
+          # Upload HTML files with shorter cache
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }} \
+            --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --include "*.html" \
+            --include "sw.js" \
+            --include "manifest.json"
+
+      - name: Set S3 bucket policies
+        run: |
+          # Set correct content types
+          aws s3 cp dist/sw.js s3://${{ secrets.S3_BUCKET_NAME }}/sw.js \
+            --content-type "application/javascript" \
+            --cache-control "public,max-age=0,must-revalidate"
+
+          aws s3 cp dist/manifest.json s3://${{ secrets.S3_BUCKET_NAME }}/manifest.json \
+            --content-type "application/json" \
+            --cache-control "public,max-age=86400"
+
+      - name: Invalidate CloudFront
+        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Deploy status
+        run: |
+          echo "✅ PWA deployed successfully!"
+          echo "🌐 S3 Bucket: ${{ secrets.S3_BUCKET_NAME }}"
+          if [ "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+            echo "🚀 CloudFront Distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
+          fi
+
+  # Optional: Run tests before deployment
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      # Add more tests here as you develop them
+      # - name: Run unit tests
+      #   run: npm test
+
+      # - name: Run e2e tests
+      #   run: npm run test:e2e
