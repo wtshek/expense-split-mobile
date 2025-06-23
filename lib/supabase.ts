@@ -1,12 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase configuration from environment variables
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
+// Debug logging for build environment
+console.log("Supabase Environment Check:");
+console.log("EXPO_PUBLIC_SUPABASE_URL:", SUPABASE_URL ? "SET" : "NOT SET");
+console.log(
+  "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
+  SUPABASE_ANON_KEY ? "SET" : "NOT SET"
+);
+
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  const missingVars = [];
+  if (!SUPABASE_URL) missingVars.push("EXPO_PUBLIC_SUPABASE_URL");
+  if (!SUPABASE_ANON_KEY) missingVars.push("EXPO_PUBLIC_SUPABASE_ANON_KEY");
+
   throw new Error(
-    "Missing Supabase environment variables. Please check your .env file and ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set."
+    `Missing Supabase environment variables: ${missingVars.join(", ")}. ` +
+      `Please check your GitHub secrets and ensure these are set: ${missingVars.join(
+        ", "
+      )}`
   );
 }
 
@@ -15,10 +29,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     // Enable session persistence since we now have authentication
     persistSession: true,
-    // Auto refresh tokens
     autoRefreshToken: true,
-    // Detect session in URL (useful for email confirmations)
-    detectSessionInUrl: true,
   },
 });
 
