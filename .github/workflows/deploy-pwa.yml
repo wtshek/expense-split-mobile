@@ -92,7 +92,7 @@ jobs:
             --cache-control "public,max-age=86400"
 
       - name: Invalidate CloudFront
-        if: secrets.CLOUDFRONT_DISTRIBUTION_ID != ''
+        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID != '' }}
         # Invalidates the CloudFront distribution cache for all paths to ensure latest content.
         run: |
           aws cloudfront create-invalidation \
