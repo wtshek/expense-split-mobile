@@ -7,6 +7,8 @@ import {
   fetchGroups,
   getCurrentUserProfile,
 } from "@/utils/database";
+// DateTimePicker removed to fix NativeEventEmitter issue
+// Using simple text input for date instead
 import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useState } from "react";
 import {
@@ -20,7 +22,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import DatePicker from "react-native-date-picker";
 
 type SplitType = "equal" | "percentage" | "custom";
 
@@ -77,9 +78,7 @@ const AddExpenseFormScreen = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Date picker state
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  // Date picker state removed - using simple text input now
 
   // Error handling
   const [errors, setErrors] = useState<ErrorState>({});
@@ -100,13 +99,17 @@ const AddExpenseFormScreen = () => {
 
   // Initialize data on component mount
   useEffect(() => {
-    initializeData();
+    // Add a small delay to ensure auth is initialized
+    const timer = setTimeout(() => {
+      initializeData();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
 
-  // Sync selectedDate with formData.date on component mount
+  // Initialize date on component mount
   useEffect(() => {
     const currentDate = new Date();
-    setSelectedDate(currentDate);
     setFormData((prev) => ({
       ...prev,
       date: currentDate.toLocaleDateString(),
@@ -187,12 +190,17 @@ const AddExpenseFormScreen = () => {
       setLoading(true);
       clearErrors();
 
-      // First get current user profile
+      // First get current user profile with error handling for auth session
       const currentProfileResult = await getCurrentUserProfile();
       if (currentProfileResult.error) {
+        console.warn(
+          "Failed to load user profile:",
+          currentProfileResult.error
+        );
         setErrors({
-          general: "Failed to load your profile. Please try logging in again.",
+          general: "Authentication required. Please sign in to continue.",
         });
+        setLoading(false);
         return;
       }
 
@@ -494,19 +502,7 @@ const AddExpenseFormScreen = () => {
     }
   };
 
-  const handleDatePress = () => {
-    setShowDatePicker(true);
-  };
-
-  const handleDateConfirm = (date: Date) => {
-    setShowDatePicker(false);
-    setSelectedDate(date);
-    handleInputChange("date", date.toLocaleDateString());
-  };
-
-  const handleDateCancel = () => {
-    setShowDatePicker(false);
-  };
+  // Date picker functions removed - using simple text input now
 
   const split = formData.isGroupExpense ? calculateSplit() : null;
 
@@ -624,12 +620,13 @@ const AddExpenseFormScreen = () => {
           {/* Date */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date</Text>
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={handleDatePress}
-            >
-              <Text style={styles.dateText}>{formData.date}</Text>
-            </TouchableOpacity>
+            <TextInput
+              style={styles.textInput}
+              placeholder="MM/DD/YYYY"
+              value={formData.date}
+              onChangeText={(value) => handleInputChange("date", value)}
+              maxLength={10}
+            />
           </View>
 
           {/* Group Expense Toggle */}
@@ -868,15 +865,7 @@ const AddExpenseFormScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Date Picker */}
-      <DatePicker
-        modal
-        open={showDatePicker}
-        date={selectedDate}
-        mode="date"
-        onConfirm={handleDateConfirm}
-        onCancel={handleDateCancel}
-      />
+      {/* Date picker removed to fix NativeEventEmitter issue */}
     </View>
   );
 };

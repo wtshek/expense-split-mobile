@@ -1,6 +1,7 @@
 import { AppStyles } from "@/constants/AppStyles";
 import { User } from "@/types/database";
 import {
+  getCurrentSession,
   getCurrentUser,
   onAuthStateChange,
   signIn,
@@ -37,16 +38,40 @@ const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   });
 
   useEffect(() => {
-    // Check current user on mount
-    getCurrentUser().then((user) => {
-      if (user) {
-        setUser(user);
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // First, check if there's an existing session
+        const session = await getCurrentSession();
+        if (session?.user && isMounted) {
+          console.log("Found existing session for user:", session.user.id);
+          setUser(session.user as User);
+        } else {
+          // Try to get current user (this might still work without session)
+          const user = await getCurrentUser();
+          if (user && isMounted) {
+            console.log("Found current user:", user.id);
+            setUser(user);
+          }
+        }
+      } catch (error) {
+        console.warn("Auth initialization failed:", error);
+        // Don't set error state here, just continue with no user
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth state changes
     const subscription = onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id);
+      if (!isMounted) return;
+
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user as User);
       } else if (event === "SIGNED_OUT") {
@@ -55,6 +80,7 @@ const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
