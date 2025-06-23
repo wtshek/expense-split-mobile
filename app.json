@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "expense-split-mobile",
+    "name": "Expense Split",
     "slug": "expense-split-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,7 +22,31 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Expense Split",
+      "shortName": "ExpenseSplit",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#000000",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "crossorigin": "use-credentials",
+      "relatedApplications": [],
+      "preferRelatedApplications": false,
+      "dangerous": {
+        "noServiceWorker": false
+      },
+      "meta": {
+        "apple-mobile-web-app-capable": "yes",
+        "apple-mobile-web-app-status-bar-style": "default",
+        "apple-mobile-web-app-title": "Expense Split",
+        "application-name": "Expense Split",
+        "mobile-web-app-capable": "yes",
+        "msapplication-TileColor": "#000000",
+        "msapplication-tap-highlight": "no"
+      }
     },
     "plugins": [
       "expo-router",

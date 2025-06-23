@@ -6,11 +6,25 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Platform } from "react-native";
 import "react-native-reanimated";
 
 import AuthWrapper from "@/components/AuthWrapper";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useColorScheme } from "@/hooks/useColorScheme";
+
+// Import PWA CSS for web
+if (Platform.OS === "web") {
+  require("../web/pwa.css");
+}
+
+// Initialize PWA service for web (client-side only)
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  import("@/utils/pwa").then((module) => {
+    // PWA service auto-initializes through singleton
+    console.log("PWA service initialized");
+  });
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
