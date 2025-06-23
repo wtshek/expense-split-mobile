@@ -75,7 +75,7 @@ jobs:
             --cache-control "public,max-age=86400"
 
       - name: Invalidate CloudFront
-        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        if: secrets.CLOUDFRONT_DISTRIBUTION_ID != ''
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
@@ -85,7 +85,7 @@ jobs:
         run: |
           echo "✅ PWA deployed successfully!"
           echo "🌐 S3 Bucket: ${{ secrets.S3_BUCKET_NAME }}"
-          if [ "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+          if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
             echo "🚀 CloudFront Distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
           fi
 
