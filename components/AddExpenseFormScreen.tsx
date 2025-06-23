@@ -14,6 +14,8 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -91,11 +93,81 @@ const AddExpenseFormScreen = () => {
   // Animation for notification
   const notificationOpacity = useState(new Animated.Value(0))[0];
 
+  // Modal states for iOS picker
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [showPaidByPicker, setShowPaidByPicker] = useState(false);
+  const [showSplitTypePicker, setShowSplitTypePicker] = useState(false);
+
   const splitOptions = [
     { label: "Equal Split (50/50)", value: "equal" },
     { label: "Percentage Split", value: "percentage" },
     { label: "Custom Amount", value: "custom" },
   ];
+
+  // Helper functions to get display text
+  const getCategoryDisplayText = () => {
+    const category = categories.find((cat) => cat.id === formData.category);
+    return category
+      ? `${category.icon || ""} ${category.name}`.trim()
+      : "Select category";
+  };
+
+  const getGroupDisplayText = () => {
+    const group = groups.find((g) => g.id === formData.selectedGroup);
+    return group?.name || "Select group";
+  };
+
+  const getPaidByDisplayText = () => {
+    const member = groupMembers.find((m) => m.id === formData.paidBy);
+    return member?.name || "Select who paid";
+  };
+
+  const getSplitTypeDisplayText = () => {
+    const option = splitOptions.find((opt) => opt.value === formData.splitType);
+    return option?.label || "Equal Split (50/50)";
+  };
+
+  // iOS Picker Modal Component
+  const renderPickerModal = (
+    visible: boolean,
+    onClose: () => void,
+    selectedValue: string,
+    onValueChange: (value: string) => void,
+    items: { label: string; value: string }[],
+    title: string
+  ) => (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.modalDoneButton}>
+              <Text style={styles.modalDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <Picker
+            selectedValue={selectedValue}
+            onValueChange={onValueChange}
+            style={styles.modalPicker}
+          >
+            {items.map((item) => (
+              <Picker.Item
+                key={item.value}
+                label={item.label}
+                value={item.value}
+              />
+            ))}
+          </Picker>
+        </View>
+      </Pressable>
+    </Modal>
+  );
 
   // Initialize data on component mount
   useEffect(() => {
@@ -547,6 +619,7 @@ const AddExpenseFormScreen = () => {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>
@@ -600,21 +673,21 @@ const AddExpenseFormScreen = () => {
           {/* Category */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Category</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.category}
-                onValueChange={(value) => handleInputChange("category", value)}
-                style={styles.picker}
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowCategoryPicker(true)}
+            >
+              <Text
+                style={[
+                  formData.category
+                    ? styles.pickerButtonText
+                    : styles.pickerButtonPlaceholder,
+                ]}
               >
-                {categories.map((category) => (
-                  <Picker.Item
-                    key={category.id}
-                    label={`${category.icon || ""} ${category.name}`}
-                    value={category.id}
-                  />
-                ))}
-              </Picker>
-            </View>
+                {getCategoryDisplayText()}
+              </Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Date */}
@@ -670,23 +743,21 @@ const AddExpenseFormScreen = () => {
                   </Text>
                 </View>
               ) : (
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={formData.selectedGroup}
-                    onValueChange={(value) =>
-                      handleInputChange("selectedGroup", value)
-                    }
-                    style={styles.picker}
+                <TouchableOpacity
+                  style={styles.pickerButton}
+                  onPress={() => setShowGroupPicker(true)}
+                >
+                  <Text
+                    style={[
+                      formData.selectedGroup
+                        ? styles.pickerButtonText
+                        : styles.pickerButtonPlaceholder,
+                    ]}
                   >
-                    {groups.map((group) => (
-                      <Picker.Item
-                        key={group.id}
-                        label={group.name}
-                        value={group.id}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+                    {getGroupDisplayText()}
+                  </Text>
+                  <Text style={styles.pickerArrow}>▼</Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -695,21 +766,21 @@ const AddExpenseFormScreen = () => {
           {formData.isGroupExpense && groupMembers.length > 0 && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Paid By</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.paidBy}
-                  onValueChange={(value) => handleInputChange("paidBy", value)}
-                  style={styles.picker}
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowPaidByPicker(true)}
+              >
+                <Text
+                  style={[
+                    formData.paidBy
+                      ? styles.pickerButtonText
+                      : styles.pickerButtonPlaceholder,
+                  ]}
                 >
-                  {groupMembers.map((profile) => (
-                    <Picker.Item
-                      key={profile.id}
-                      label={profile.name}
-                      value={profile.id}
-                    />
-                  ))}
-                </Picker>
-              </View>
+                  {getPaidByDisplayText()}
+                </Text>
+                <Text style={styles.pickerArrow}>▼</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -719,23 +790,15 @@ const AddExpenseFormScreen = () => {
               <Text style={styles.label}>Split Configuration</Text>
 
               {/* Split Type Picker */}
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.splitType}
-                  onValueChange={(value) =>
-                    handleInputChange("splitType", value as SplitType)
-                  }
-                  style={styles.picker}
-                >
-                  {splitOptions.map((option) => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                    />
-                  ))}
-                </Picker>
-              </View>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowSplitTypePicker(true)}
+              >
+                <Text style={styles.pickerButtonText}>
+                  {getSplitTypeDisplayText()}
+                </Text>
+                <Text style={styles.pickerArrow}>▼</Text>
+              </TouchableOpacity>
 
               {/* Percentage Input (only for percentage split) */}
               {formData.splitType === "percentage" && (
@@ -866,6 +929,55 @@ const AddExpenseFormScreen = () => {
       </ScrollView>
 
       {/* Date picker removed to fix NativeEventEmitter issue */}
+
+      {/* Category Picker Modal */}
+      {renderPickerModal(
+        showCategoryPicker,
+        () => setShowCategoryPicker(false),
+        formData.category,
+        (value) => handleInputChange("category", value),
+        categories.map((cat) => ({
+          label: `${cat.icon || ""} ${cat.name}`.trim(),
+          value: cat.id,
+        })),
+        "Select Category"
+      )}
+
+      {/* Group Picker Modal */}
+      {renderPickerModal(
+        showGroupPicker,
+        () => setShowGroupPicker(false),
+        formData.selectedGroup,
+        (value) => handleInputChange("selectedGroup", value),
+        groups.map((group) => ({
+          label: group.name,
+          value: group.id,
+        })),
+        "Select Group"
+      )}
+
+      {/* Paid By Picker Modal */}
+      {renderPickerModal(
+        showPaidByPicker,
+        () => setShowPaidByPicker(false),
+        formData.paidBy,
+        (value) => handleInputChange("paidBy", value),
+        groupMembers.map((member) => ({
+          label: member.name,
+          value: member.id,
+        })),
+        "Select Who Paid"
+      )}
+
+      {/* Split Type Picker Modal */}
+      {renderPickerModal(
+        showSplitTypePicker,
+        () => setShowSplitTypePicker(false),
+        formData.splitType,
+        (value) => handleInputChange("splitType", value as SplitType),
+        splitOptions,
+        "Select Split Type"
+      )}
     </View>
   );
 };
@@ -931,11 +1043,13 @@ const styles = StyleSheet.create({
     borderRadius: AppStyles.borderRadius.sm,
     borderWidth: 1,
     borderColor: AppStyles.colors.border,
-    overflow: "hidden",
+    overflow: "visible", // Changed from "hidden" to allow iOS picker interaction
+    minHeight: 160, // Ensure consistent height for iOS picker visibility
   },
   picker: {
-    height: 50,
+    height: 160, // Increased height for iOS - iOS Picker needs more height to display properly
     backgroundColor: "transparent",
+    color: "#000000", // Ensure text is visible on iOS
   },
   dateInput: {
     ...AppStyles.inputField,
@@ -1102,6 +1216,66 @@ const styles = StyleSheet.create({
     ...AppStyles.typography.caption,
     color: AppStyles.colors.text.secondary,
     textAlign: "center",
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: AppStyles.colors.background,
+    borderTopLeftRadius: AppStyles.borderRadius.lg,
+    borderTopRightRadius: AppStyles.borderRadius.lg,
+    paddingBottom: AppStyles.spacing.sm,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: AppStyles.spacing.md,
+    paddingBottom: AppStyles.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: AppStyles.colors.border,
+  },
+  modalTitle: {
+    ...AppStyles.typography.h3,
+    color: AppStyles.colors.text.primary,
+  },
+  modalDoneButton: {
+    padding: AppStyles.spacing.sm,
+  },
+  modalDoneText: {
+    ...AppStyles.typography.bodyMedium,
+    color: AppStyles.colors.accent,
+  },
+  modalPicker: {
+    height: 180,
+    backgroundColor: "transparent",
+    marginTop: -AppStyles.spacing.sm,
+  },
+  pickerButton: {
+    backgroundColor: AppStyles.colors.surface,
+    borderRadius: AppStyles.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: AppStyles.colors.border,
+    padding: AppStyles.spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pickerButtonText: {
+    ...AppStyles.typography.caption,
+    color: AppStyles.colors.text.primary,
+  },
+  pickerButtonPlaceholder: {
+    ...AppStyles.typography.caption,
+    color: AppStyles.colors.text.tertiary,
+  },
+  pickerArrow: {
+    ...AppStyles.typography.caption,
+    color: AppStyles.colors.text.tertiary,
   },
 });
 
