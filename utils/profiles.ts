@@ -7,7 +7,6 @@ import {
   DatabaseListResponse,
   DatabaseResponse,
   Profile,
-  ProfileInsert,
   ProfileUpdate,
 } from "@/types/database";
 
@@ -82,27 +81,6 @@ export const fetchProfiles = async (): Promise<
     }
 
     return { data: data || [], error: null };
-  } catch (error) {
-    return { data: null, error: handleSupabaseError(error) };
-  }
-};
-
-// Create a profile (typically called automatically via database trigger on user signup)
-export const createProfile = async (
-  profileData: ProfileInsert
-): Promise<DatabaseResponse<Profile>> => {
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert(profileData)
-      .select()
-      .single();
-
-    if (error) {
-      return { data: null, error: handleSupabaseError(error) };
-    }
-
-    return { data, error: null };
   } catch (error) {
     return { data: null, error: handleSupabaseError(error) };
   }

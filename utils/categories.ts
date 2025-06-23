@@ -11,10 +11,7 @@ export const fetchCategories = async (): Promise<
   DatabaseListResponse<Category>
 > => {
   try {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("name", { ascending: true });
+    const { data, error } = await supabase.from("categories").select("*");
 
     if (error) {
       return { data: null, error: handleSupabaseError(error) };

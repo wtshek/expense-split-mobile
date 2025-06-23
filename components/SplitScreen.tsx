@@ -28,6 +28,22 @@ const SplitScreen = () => {
     loadData();
   }, []);
 
+  const getCurrentMonthDateRange = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    // First day of current month
+    const startDate = new Date(year, month, 1);
+    // Last day of current month
+    const endDate = new Date(year, month + 1, 0);
+
+    return {
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+    };
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -42,10 +58,17 @@ const SplitScreen = () => {
       const userId = profileResult.data.id;
       setCurrentProfile(profileResult.data);
 
-      // Fetch all profiles and group expenses
+      // Get current month date range for SQL filtering
+      const { start, end } = getCurrentMonthDateRange();
+
+      // Fetch all profiles and group expenses with date filtering in SQL
       const [profilesResult, expensesResult] = await Promise.all([
         fetchProfiles(),
-        fetchExpenses(userId, null, { is_group_expense: true }),
+        fetchExpenses(userId, null, {
+          is_group_expense: true,
+          date_from: start,
+          date_to: end,
+        }),
       ]);
 
       if (profilesResult.error) {
@@ -67,7 +90,7 @@ const SplitScreen = () => {
       setProfiles(profilesResult.data || []);
       setGroupExpenses(expensesResult.data || []);
 
-      // Calculate balances
+      // Calculate balances using current month expenses
       calculateBalances(expensesResult.data || [], userId);
     } catch (error) {
       console.error("Error loading split data:", error);
@@ -210,7 +233,7 @@ const SplitScreen = () => {
       {/* Recent Group Expenses */}
       {groupExpenses.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Group Expenses</Text>
+          <Text style={styles.sectionTitle}>This Month's Group Expenses</Text>
           <View style={styles.expensesContainer}>
             {groupExpenses.slice(0, 10).map((expense) => {
               const paidByProfile = profiles.find(
@@ -258,11 +281,13 @@ const SplitScreen = () => {
       {/* Empty State for Expenses */}
       {groupExpenses.length === 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Group Expenses</Text>
+          <Text style={styles.sectionTitle}>This Month's Group Expenses</Text>
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>No Group Expenses Yet</Text>
+            <Text style={styles.emptyStateTitle}>
+              No Group Expenses This Month
+            </Text>
             <Text style={styles.emptyStateText}>
-              Start adding group expenses to split costs with others.
+              Start adding group expenses to split costs with others this month.
             </Text>
           </View>
         </View>

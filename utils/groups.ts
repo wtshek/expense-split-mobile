@@ -325,7 +325,7 @@ export const fetchGroupMembers = async (
       .from("group_members")
       .select(
         `
-        profile:profiles(id, name, created_at, updated_at)
+        profile:profiles(id, name, created_at)
       `
       )
       .eq("group_id", groupId);
@@ -354,7 +354,7 @@ export const fetchGroupById = async (
         `
         *,
         members:group_members(
-          profile:profiles(id, name, created_at, updated_at)
+          profile:profiles(id, name, created_at)
         )
       `
       )
@@ -422,7 +422,7 @@ export const fetchOwnedGroups = async (): Promise<
         `
         *,
         members:group_members(
-          profile:profiles(id, name, created_at, updated_at)
+          profile:profiles(id, name, created_at)
         )
       `
       )
