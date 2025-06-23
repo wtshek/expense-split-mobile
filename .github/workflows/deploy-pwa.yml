@@ -12,7 +12,7 @@ env:
   AWS_REGION: "us-east-1" # Change to your preferred region
   # New: Expose CloudFront Distribution ID as an environment variable for easier access and to
   # potentially bypass parsing issues with 'env' directly in 'if' conditions.
-  CLOUDFRONT_DISTRIBUTION_ID_ENV: ${{ env.CLOUDFRONT_DISTRIBUTION_ID }}
+  CLOUDFRONT_DISTRIBUTION_ID_ENV: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
 
 jobs:
   build-and-deploy:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ vars.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
@@ -34,8 +34,8 @@ jobs:
       # Removed: The "Create environment file" step is no longer needed as env are passed directly.
       # - name: Create environment file
       #   run: |
-      #     echo "EXPO_PUBLIC_SUPABASE_URL=${{ env.EXPO_PUBLIC_SUPABASE_URL }}" >> .env
-      #     echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ env.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
+      #     echo "EXPO_PUBLIC_SUPABASE_URL=${{ vars.EXPO_PUBLIC_SUPABASE_URL }}" >> .env
+      #     echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
 
       - name: Lint code
         run: npm run lint
@@ -44,8 +44,8 @@ jobs:
         # Pass Supabase env directly as environment variables to the build command.
         # This is the most reliable way to ensure they are available during the build.
         env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ env.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ env.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: npm run pwa:build
 
       - name: Upload production artifacts
@@ -59,14 +59,14 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Deploy to S3 (Immutable Assets)
         # Syncs all assets except HTML, service worker, and manifest with long cache control.
         run: |
-          aws s3 sync dist/ s3://${{ env.S3_BUCKET_NAME }} \
+          aws s3 sync dist/ s3://${{ vars.S3_BUCKET_NAME }} \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "*.html" \
@@ -77,7 +77,7 @@ jobs:
         # Syncs HTML, service worker, and manifest with no-cache/revalidate control.
         # This will be overridden for manifest.json by the next step.
         run: |
-          aws s3 sync dist/ s3://${{ env.S3_BUCKET_NAME }} \
+          aws s3 sync dist/ s3://${{ vars.S3_BUCKET_NAME }} \
             --delete \
             --cache-control "public,max-age=0,must-revalidate" \
             --include "*.html" \
@@ -89,12 +89,12 @@ jobs:
         # The sw.js cp is largely for explicit content-type assurance.
         run: |
           # Set correct content types for sw.js (cache control matches previous sync, but content-type is explicit)
-          aws s3 cp dist/sw.js s3://${{ env.S3_BUCKET_NAME }}/sw.js \
+          aws s3 cp dist/sw.js s3://${{ vars.S3_BUCKET_NAME }}/sw.js \
             --content-type "application/javascript" \
             --cache-control "public,max-age=0,must-revalidate"
 
           # Set correct content type and longer cache for manifest.json (overrides previous sync)
-          aws s3 cp dist/manifest.json s3://${{ env.S3_BUCKET_NAME }}/manifest.json \
+          aws s3 cp dist/manifest.json s3://${{ vars.S3_BUCKET_NAME }}/manifest.json \
             --content-type "application/json" \
             --cache-control "public,max-age=86400"
 
@@ -102,15 +102,15 @@ jobs:
         # Invalidates the CloudFront distribution cache for all paths to ensure latest content.
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
 
       - name: Deploy status
         run: |
           echo "✅ PWA deployed successfully!"
-          echo "🌐 S3 Bucket: ${{ env.S3_BUCKET_NAME }}"
-          if [ -n "${{ env.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
-            echo "🚀 CloudFront Distribution: ${{ env.CLOUDFRONT_DISTRIBUTION_ID }}"
+          echo "🌐 S3 Bucket: ${{ vars.S3_BUCKET_NAME }}"
+          if [ -n "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+            echo "🚀 CloudFront Distribution: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
           fi
 
   # Optional: Run tests before deployment
@@ -124,7 +124,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ vars.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
