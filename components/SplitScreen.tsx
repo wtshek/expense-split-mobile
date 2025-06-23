@@ -5,7 +5,7 @@ import {
   fetchProfiles,
   getCurrentUserProfile,
 } from "@/utils/database";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,10 +24,6 @@ const SplitScreen = () => {
   const [balances, setBalances] = useState<{ [key: string]: number }>({});
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const getCurrentMonthDateRange = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -44,7 +40,47 @@ const SplitScreen = () => {
     };
   };
 
-  const loadData = async () => {
+  const calculateBalances = (
+    expenses: ExpenseWithDetails[],
+    currentUserId: string
+  ) => {
+    const balanceMap: { [key: string]: number } = {};
+
+    expenses.forEach((expense) => {
+      if (!expense.split_details || !expense.involved_profile_ids) return;
+
+      const splitDetails = expense.split_details;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const totalAmount = expense.amount;
+      const paidBy = expense.paid_by_profile_id;
+
+      // Calculate how much each person owes
+      splitDetails.participants.forEach((participant) => {
+        const profileId = participant.profile_id;
+        const owedAmount = participant.amount;
+
+        if (profileId === currentUserId) {
+          // Current user's perspective
+          if (paidBy === currentUserId) {
+            // Current user paid, others owe them
+            splitDetails.participants.forEach((p) => {
+              if (p.profile_id !== currentUserId) {
+                balanceMap[p.profile_id] =
+                  (balanceMap[p.profile_id] || 0) + p.amount;
+              }
+            });
+          } else {
+            // Someone else paid, current user owes them
+            balanceMap[paidBy] = (balanceMap[paidBy] || 0) - owedAmount;
+          }
+        }
+      });
+    });
+
+    setBalances(balanceMap);
+  };
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -98,46 +134,11 @@ const SplitScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const calculateBalances = (
-    expenses: ExpenseWithDetails[],
-    currentUserId: string
-  ) => {
-    const balanceMap: { [key: string]: number } = {};
-
-    expenses.forEach((expense) => {
-      if (!expense.split_details || !expense.involved_profile_ids) return;
-
-      const splitDetails = expense.split_details;
-      const totalAmount = expense.amount;
-      const paidBy = expense.paid_by_profile_id;
-
-      // Calculate how much each person owes
-      splitDetails.participants.forEach((participant) => {
-        const profileId = participant.profile_id;
-        const owedAmount = participant.amount;
-
-        if (profileId === currentUserId) {
-          // Current user's perspective
-          if (paidBy === currentUserId) {
-            // Current user paid, others owe them
-            splitDetails.participants.forEach((p) => {
-              if (p.profile_id !== currentUserId) {
-                balanceMap[p.profile_id] =
-                  (balanceMap[p.profile_id] || 0) + p.amount;
-              }
-            });
-          } else {
-            // Someone else paid, current user owes them
-            balanceMap[paidBy] = (balanceMap[paidBy] || 0) - owedAmount;
-          }
-        }
-      });
-    });
-
-    setBalances(balanceMap);
-  };
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -233,7 +234,9 @@ const SplitScreen = () => {
       {/* Recent Group Expenses */}
       {groupExpenses.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Month's Group Expenses</Text>
+          <Text style={styles.sectionTitle}>
+            This Month&apos;s Group Expenses
+          </Text>
           <View style={styles.expensesContainer}>
             {groupExpenses.slice(0, 10).map((expense) => {
               const paidByProfile = profiles.find(
@@ -281,7 +284,9 @@ const SplitScreen = () => {
       {/* Empty State for Expenses */}
       {groupExpenses.length === 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Month's Group Expenses</Text>
+          <Text style={styles.sectionTitle}>
+            This Month&apos;s Group Expenses
+          </Text>
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateTitle}>
               No Group Expenses This Month

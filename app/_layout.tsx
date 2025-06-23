@@ -15,6 +15,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 
 // Import PWA CSS for web
 if (Platform.OS === "web") {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("../web/pwa.css");
 }
 

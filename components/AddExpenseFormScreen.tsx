@@ -169,15 +169,16 @@ const AddExpenseFormScreen = () => {
     </Modal>
   );
 
-  // Initialize data on component mount
+  // Initialize component data
   useEffect(() => {
-    // Add a small delay to ensure auth is initialized
+    // Small delay to ensure component is fully mounted
     const timer = setTimeout(() => {
       initializeData();
     }, 100);
 
     return () => clearTimeout(timer);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // initializeData is stable, safe to omit
 
   // Initialize date on component mount - already set as Date in initial state
 
@@ -200,7 +201,8 @@ const AddExpenseFormScreen = () => {
         setNotification((prev) => ({ ...prev, visible: false }));
       });
     }
-  }, [notification.visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notification.visible]); // notificationOpacity is stable, safe to omit
 
   const showNotification = (
     message: string,
