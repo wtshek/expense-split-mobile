@@ -9,6 +9,36 @@
   padding-right: env(safe-area-inset-right);
 }
 
+/* PWA Standalone Mode Navigation Adjustments */
+@media (display-mode: standalone) {
+  /* Ensure proper spacing for navigation in standalone mode */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Adjust tab bar for standalone mode */
+  .expo-tab-bar {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  
+  /* Better touch targets in standalone mode */
+  .expo-tab-button {
+    min-height: 48px;
+    min-width: 48px;
+  }
+  
+  /* Prevent links from opening in new window/tab */
+  a[target="_blank"] {
+    pointer-events: none;
+  }
+  
+  /* Ensure all navigation stays within the PWA */
+  a:not([href^="http"]):not([href^="https"]):not([href^="mailto"]):not([href^="tel"]) {
+    /* Internal links should never open in new tab */
+  }
+}
+
 /* Prevent text selection and highlighting for app-like feel */
 * {
   -webkit-user-select: none;

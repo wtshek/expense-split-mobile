@@ -6,7 +6,36 @@ import { Platform } from "react-native";
 import { HapticTab } from "@/components/HapticTab";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { AppStyles } from "@/constants/AppStyles";
+import { pwaService } from "@/utils/pwa";
 export default function TabLayout() {
+  // Calculate padding for PWA standalone mode
+  const getPWATabBarStyle = () => {
+    const isStandalone = Platform.OS === "web" && pwaService.isStandalone();
+    const isIOS = Platform.OS === "ios";
+    
+    let paddingBottom = 8;
+    let height = 64;
+    
+    if (isIOS) {
+      paddingBottom = 24;
+      height = 88;
+    } else if (isStandalone && Platform.OS === "web") {
+      // Add extra padding for PWA standalone mode on web
+      paddingBottom = 16;
+      height = 72;
+    }
+    
+    return {
+      backgroundColor: AppStyles.colors.background,
+      borderTopWidth: 1,
+      borderTopColor: AppStyles.colors.border,
+      paddingTop: 8,
+      paddingBottom,
+      height,
+      ...AppStyles.shadows.sm,
+    };
+  };
+
   return (
     <Tabs
       screenOptions={{
@@ -15,15 +44,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
-        tabBarStyle: {
-          backgroundColor: AppStyles.colors.background,
-          borderTopWidth: 1,
-          borderTopColor: AppStyles.colors.border,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === "ios" ? 24 : 8,
-          height: Platform.OS === "ios" ? 88 : 64,
-          ...AppStyles.shadows.sm,
-        },
+        tabBarStyle: getPWATabBarStyle(),
         tabBarLabelStyle: {
           ...AppStyles.typography.small,
           fontWeight: "500",
