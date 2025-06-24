@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import PWAInstallButton from "./PWAInstallButton";
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -176,6 +177,7 @@ const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
       >
         <View style={styles.authContainer}>
           <View style={styles.header}>
+            {Platform.OS === "web" && <PWAInstallButton />}
             <Text style={styles.title}>Expense Splitter</Text>
             <Text style={styles.subtitle}>
               {isSignUp ? "Create your account" : "Welcome back"}
